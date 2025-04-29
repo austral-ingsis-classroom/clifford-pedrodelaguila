@@ -16,6 +16,4 @@ public interface Element {
   boolean isLeaf();
 
   List<Element> getChildren();
-
-  boolean isRoot();
 }

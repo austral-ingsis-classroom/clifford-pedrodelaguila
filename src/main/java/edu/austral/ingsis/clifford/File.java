@@ -54,8 +54,4 @@ public class File implements Element {
     return List.of();
   }
 
-  @Override
-  public boolean isRoot() {
-    return false;
-  }
 }

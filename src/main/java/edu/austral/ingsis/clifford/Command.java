@@ -5,14 +5,15 @@ import java.util.Comparator;
 import java.util.List;
 
 public sealed interface Command
-    permits Command.Cd, Command.Ls, Command.Mkdir, Command.Touch, Command.Rm, Command.Pwd {
-  CommandResult execute(String name, Element element) throws Exception;
+        permits Command.Cd, Command.Ls, Command.Mkdir, Command.Touch, Command.Rm, Command.Pwd {
+
+  FileSystem execute(String name, Element element);
 
   String getName();
 
   record Cd(String commandName) implements Command {
     @Override
-    public CommandResult execute(String commandInput, Element directory) throws Exception {
+    public FileSystem execute(String commandInput, Element directory){
       switch (commandInput) {
         case "cd .." -> {
           return cdPointPoint(commandInput, directory);
@@ -21,12 +22,11 @@ public sealed interface Command
           return cdPoint(commandInput, directory);
         }
         default -> {
-          // Parse command: "cd boca"
           String[] parts = commandInput.split(" ");
           if (parts.length == 2 && parts[0].equals("cd")) {
-            return cd(parts[1], directory); // Ahora sí devolvés el resultado
+            return cd(parts[1], directory);
           } else {
-            throw new IllegalArgumentException("Invalid cd command");
+            return new FileSystem(directory.getRoot(), directory, new CommandResult(directory, "Invalid command."));
           }
         }
       }
@@ -37,54 +37,47 @@ public sealed interface Command
       return commandName;
     }
 
-    private CommandResult cd(String name, Element element) {
+    private FileSystem cd(String name, Element element) {
       if (element == null || !element.isDirectory()) {
-        throw new IllegalArgumentException("Invalid directory.");
+        return new FileSystem(element.getRoot(), element, new CommandResult(element, "Invalid element to make cd."));
       }
       List<Element> children = element.getChildren();
       for (Element child : children) {
         if (child instanceof Directory && child.getName().equals(name)) {
-          return new CommandResult(child, "Changed directory to: " + child.getName());
+          return new FileSystem(element.getRoot(), child, new CommandResult(child, "Changed directory to: " + child.getName()));
         }
       }
-      throw new IllegalArgumentException("Directory not found: " + name);
+      return new FileSystem(element.getRoot(), element, new CommandResult(element, "No such directory."));
     }
 
-    private CommandResult cdPointPoint(String name, Element element) {
-      // Implementation for changing to parent directory
+    private FileSystem cdPointPoint(String name, Element element) {
       if (element == null || !element.isDirectory()) {
-        System.out.println("Invalid directory.");
-        throw new IllegalArgumentException("Invalid directory.");
+        return new FileSystem(element.getRoot(), element, new CommandResult(element, "Invalid element to make cd."));
       }
       Element parent = element.getParent();
       if (parent != null) {
-        System.out.println("Changing directory to: " + parent.getName());
-        return new CommandResult(parent, "Changing directory to: " + parent.getName());
+        return new FileSystem(element.getRoot(), parent, new CommandResult(parent, "Changing directory to: " + parent.getName()));
       } else {
-        System.out.println("Already at root directory." + element.getRoot().getName());
-        new CommandResult(element.getRoot(), "Already at root directory.");
+        return new FileSystem(element.getRoot(), element , new CommandResult(element, "Already at root."));
       }
-      return new CommandResult(element, "Already at root directory.");
     }
 
-    private CommandResult cdPoint(String name, Element element) {
-      // Implementation stay in same diectory
+    private FileSystem cdPoint(String name, Element element) {
       if (element != null && element.isDirectory()) {
         if (element.getParent() != null) {
-          System.out.println("Changing directory to: " + element.getParent().getName());
-          return new CommandResult(element, "Changing directory to: " + element.getName());
+          return new FileSystem(element.getRoot(), element , new CommandResult(element, "Staying in the same directory: " + element.getName()));
         } else {
-          System.out.println("Already at root directory." + element.getRoot().getName());
-          return new CommandResult(element.getRoot(), "Already at root directory.");
+          return new FileSystem(element, element.getRoot(),new CommandResult(element.getRoot(), "Already at root directory."));
         }
+      } else {
+        return new FileSystem(element.getRoot(), element , new CommandResult(element, "Invalid element to make cd."));
       }
-      throw new IllegalArgumentException("Invalid directory.");
     }
   }
 
   record Ls(String commandName) implements Command {
     @Override
-    public CommandResult execute(String commandInput, Element element) throws Exception {
+    public FileSystem execute(String commandInput, Element element){
       switch (commandInput) {
         case "ls" -> {
           return ls(Order.NONE, element);
@@ -96,44 +89,33 @@ public sealed interface Command
           return ls(Order.DESC, element);
         }
         default -> {
-          System.out.println("Invalid command.");
-          throw new IllegalArgumentException("Invalid command: " + commandInput);
+          return new FileSystem(element.getRoot(), element , new CommandResult(element, "Invalid command."));
         }
       }
     }
 
-    private CommandResult ls(Order order, Element element) throws Exception {
+    private FileSystem ls(Order order, Element element) {
       if (element == null || !element.isDirectory()) {
-        System.out.println("Invalid directory.");
-        throw new IllegalArgumentException("Invalid directory.");
+        return new FileSystem(element.getRoot(), element, new CommandResult(element, "Invalid element to make ls."));
       }
-
       if (element.isLeaf()) {
-        System.out.println("This is a leaf element.");
-        return new CommandResult(element, "This is a leaf element.", new ArrayList<>());
+        return new FileSystem(element.getRoot(), element , new CommandResult(element, "This is a leaf element."));
       } else {
-        List<Element> children = element.getChildren();
-        List<Element> result = new ArrayList<>(children);
-
+        List<Element> children = new ArrayList<>(element.getChildren());
         switch (order) {
           case ASC -> {
-            result.sort(Comparator.comparing(Element::getName));
-            System.out.println("Listing contents in ascending order.");
-            return new CommandResult(element, "Listing contents in ascending order.", result);
+            children.sort(Comparator.comparing(Element::getName));
+            return new FileSystem(element.getRoot(), element , new CommandResult(element, "Listing contents in ascending order."));
           }
           case DESC -> {
-            result.sort(Comparator.comparing(Element::getName).reversed());
-            System.out.println("Listing contents in descending order.");
-            return new CommandResult(element, "Listing contents in descending order.", result);
+            children.sort(Comparator.comparing(Element::getName).reversed());
+            return new FileSystem(element.getRoot(), element , new CommandResult(element, "Listing contents in descending order."));
           }
           case NONE -> {
-            System.out.println("Listing contents in default order.");
-            return new CommandResult(element, "Listing contents in default order.", result);
+            return new FileSystem(element.getRoot(), element ,  new CommandResult(element, "Listing contents in default order."));
           }
           default -> {
-            // Este caso no debería ocurrir, pero se incluye por completitud
-            System.out.println("Invalid order.");
-            throw new IllegalArgumentException("Invalid order: " + order);
+            return new FileSystem(element.getRoot(),element, new CommandResult(element, "Invalid order."));
           }
         }
       }
@@ -148,38 +130,33 @@ public sealed interface Command
   public record Mkdir(String commandName) implements Command {
 
     @Override
-    public CommandResult execute(String commandInput, Element element) throws Exception {
+    public FileSystem execute(String commandInput, Element element){
       return mkdir(commandInput, element);
     }
 
-    private CommandResult mkdir(String newDirectoryName, Element element) throws Exception {
+    private FileSystem mkdir(String newDirectoryName, Element element){
       if (element == null || !element.isDirectory()) {
-        throw new IllegalArgumentException("Invalid directory.");
+        return new FileSystem(element.getRoot(), element , new CommandResult(element, "Invalid element to make mkdir."));
       }
 
       if (newDirectoryName == null
-          || newDirectoryName.isEmpty()
-          || newDirectoryName.contains("/")
-          || newDirectoryName.contains(" ")) {
-        throw new IllegalArgumentException("Invalid directory name.");
+              || newDirectoryName.isEmpty()
+              || newDirectoryName.contains("/")
+              || newDirectoryName.contains(" ")) {
+        return new FileSystem(element.getRoot(), element , new CommandResult(element, "Invalid directory name."));
       }
 
       Directory currentDir = (Directory) element;
 
-      // Verificar que no exista ya
-      for (Element child : currentDir.getChildren()) {
-        if (child.getName().equals(newDirectoryName)) {
-          throw new IllegalArgumentException("Directory already exists.");
-        }
-      }
+      Directory newDirectory = new Directory(newDirectoryName, currentDir, List.of(), element.getRoot());
 
-      Directory newDirectory =
-          new Directory(newDirectoryName, currentDir, new ArrayList<>(), element.getRoot());
-      currentDir.addChild(newDirectory);
+      // Create a new directory by replacing the list of children
+      List<Element> updatedChildren = new ArrayList<>(currentDir.getChildren());
+      updatedChildren.add(newDirectory);
+      Directory updatedDir = new Directory(currentDir.getName(), currentDir.getParent(), updatedChildren, currentDir.getRoot());
 
       String message = "'" + newDirectoryName + "' directory created";
-      System.out.println(message);
-      return new CommandResult(currentDir, message);
+      return new FileSystem(currentDir.getRoot(), updatedDir , new CommandResult(updatedDir, message));
     }
 
     @Override
@@ -190,33 +167,32 @@ public sealed interface Command
 
   record Touch(String commandName) implements Command {
     @Override
-    public CommandResult execute(String commandInput, Element currentDirectory) throws Exception {
-      String[] parts = commandInput.trim().split(" ", 2); // Usamos 2 para dividir en dos partes
+    public FileSystem execute(String commandInput, Element currentDirectory){
+      String[] parts = commandInput.trim().split(" ", 2);
       if (parts.length < 2) {
-        throw new IllegalArgumentException("Missing file name");
+        return new FileSystem(currentDirectory.getRoot(), currentDirectory , new CommandResult(currentDirectory, "Invalid command."));
       }
-
       String newFileName = parts[1];
       return touch(newFileName, currentDirectory);
     }
 
-    private CommandResult touch(String newFileName, Element currentDirectory) {
-      // Implementation for creating a file
+    private FileSystem touch(String newFileName, Element currentDirectory) {
       if (currentDirectory == null || !currentDirectory.isDirectory()) {
-        System.out.println("Invalid directory.");
-        throw new IllegalArgumentException("Invalid directory.");
+        return new FileSystem(currentDirectory.getRoot(), currentDirectory , new CommandResult(currentDirectory, "Invalid directory."));
       }
       if (newFileName == null
-          || newFileName.isEmpty()
-          || newFileName.contains("/")
-          || newFileName.contains(" ")) {
-        System.out.println("Invalid file name.");
-        throw new IllegalArgumentException("Invalid file name.");
+              || newFileName.isEmpty()
+              || newFileName.contains("/")
+              || newFileName.contains(" ")) {
+        return new FileSystem(currentDirectory.getRoot(), currentDirectory ,  new CommandResult(currentDirectory, "Invalid file name."));
       }
       File newFile = new File(newFileName, currentDirectory, currentDirectory.getRoot());
-      currentDirectory.getChildren().add(newFile);
-      System.out.println(newFileName + "file created");
-      return new CommandResult(currentDirectory, "File created: " + newFileName);
+
+      List<Element> updatedChildren = new ArrayList<>(currentDirectory.getChildren());
+      updatedChildren.add(newFile);
+      Directory updatedDir = new Directory(currentDirectory.getName(), currentDirectory.getParent(), updatedChildren, currentDirectory.getRoot());
+
+      return new FileSystem(currentDirectory.getRoot(), updatedDir , new CommandResult(updatedDir, "File created: " + newFileName));
     }
 
     @Override
@@ -227,19 +203,19 @@ public sealed interface Command
 
   record Rm(String commandName) implements Command {
     @Override
-    public CommandResult execute(String commandInput, Element element) throws Exception {
+    public FileSystem execute(String commandInput, Element element){
       boolean recursive = commandInput.contains("--recursive");
       return rm(element, recursive);
     }
 
-    private CommandResult rm(Element element, boolean recursive) throws Exception {
+    private FileSystem rm(Element element, boolean recursive){
       if (element == null || element == element.getRoot()) {
-        throw new IllegalArgumentException("Cannot remove root directory.");
+        return new FileSystem(element.getRoot(), element, new CommandResult(element, "Invalid element to make rm."));
       }
 
       Element parentElement = element.getParent();
       if (!parentElement.isDirectory()) {
-        throw new IllegalArgumentException("Parent is not a directory.");
+        return new FileSystem(element.getRoot(), element , new CommandResult(element, "Invalid element to make rm."));
       }
 
       if (element instanceof File file) {
@@ -253,28 +229,34 @@ public sealed interface Command
       throw new IllegalArgumentException("Unknown element type.");
     }
 
-    private CommandResult removeFile(File file) {
-      System.out.println("Removing file: " + file.getName());
+    private FileSystem removeFile(File file) {
       Directory currentDir = (Directory) file.getParent();
-      currentDir.removeChild(file);
-      return new CommandResult(currentDir, file.getName() + " removed");
+      List<Element> updatedChildren = new ArrayList<>(currentDir.getChildren());
+      updatedChildren.remove(file);
+
+      Directory updatedDir = new Directory(currentDir.getName(), currentDir.getParent(), updatedChildren, currentDir.getRoot());
+      return new FileSystem(updatedDir.getRoot(), updatedDir , new CommandResult(updatedDir, "File removed."));
     }
 
-    private CommandResult removeDirectory(Directory dir, boolean recursive) {
+    private FileSystem removeDirectory(Directory dir, boolean recursive) {
       if (!recursive) {
-        throw new IllegalArgumentException("Cannot remove a directory without --recursive.");
+        return new FileSystem(dir.getRoot(), dir , new CommandResult(dir, "Invalid element to remove."));
       }
+
       for (Element child : new ArrayList<>(dir.getChildren())) {
         if (child instanceof File file) {
-          dir.removeChild(file);
+          removeFile(file);
         } else if (child instanceof Directory subDir) {
           removeDirectory(subDir, true);
         }
       }
-      System.out.println("Removing directory: " + dir.getName());
-      Directory currentDir = (Directory) dir.getParent();
-      currentDir.removeChild(dir);
-      return new CommandResult(currentDir, dir.getName() + "-dir removed");
+
+      Directory parentDir = (Directory) dir.getParent();
+      List<Element> updatedChildren = new ArrayList<>(parentDir.getChildren());
+      updatedChildren.remove(dir);
+      Directory updatedParent = new Directory(parentDir.getName(), parentDir.getParent(), updatedChildren, parentDir.getRoot());
+
+      return new FileSystem(updatedParent.getRoot(), updatedParent , new CommandResult(updatedParent, dir.getName() + " directory removed"));
     }
 
     @Override
@@ -285,18 +267,15 @@ public sealed interface Command
 
   record Pwd(String commandName) implements Command {
     @Override
-    public CommandResult execute(String commandInput, Element element) throws Exception {
+    public FileSystem execute(String commandInput, Element element){
       if (commandInput == null || commandInput.isEmpty() || !commandInput.equals("pwd")) {
-        throw new IllegalArgumentException("Invalid command.");
-      }
-      if (element == null || element.getRoot() == null) {
-        throw new IllegalArgumentException("Invalid directory.");
+        return new FileSystem(element.getRoot(), element , new CommandResult(element, "Invalid command."));
       }
       return pwd(element);
     }
 
-    private CommandResult pwd(Element element) {
-      return new CommandResult(element, element.getPath());
+    private FileSystem pwd(Element element) {
+      return new FileSystem(element.getRoot(), element , new CommandResult(element, "Path of element " + element.getName() + ": " + element.getPath()));
     }
 
     @Override
