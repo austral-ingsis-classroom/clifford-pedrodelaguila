@@ -1,6 +1,5 @@
 package edu.austral.ingsis.clifford;
 
-
 public class FileSystem {
   private final Directory rootDirectory;
   private final Directory currentDirectory;

@@ -3,7 +3,7 @@ package edu.austral.ingsis.clifford;
 import java.util.*;
 
 public record Directory(String name, Directory parent, Map<String, FSNode> children)
-        implements FSNode {
+    implements FSNode {
 
   public Directory {
     children = Collections.unmodifiableMap(new LinkedHashMap<>(children));
