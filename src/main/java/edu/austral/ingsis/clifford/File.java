@@ -1,57 +1,23 @@
 package edu.austral.ingsis.clifford;
 
-import java.util.List;
-
-public class File implements Element {
-  String name;
-  Element parent;
-  Element root;
-
-  public File(String name, Element parent, Element root) {
-    this.name = name;
-    this.parent = parent;
-    this.root = root;
-  }
-
+public record File(String name, Directory parent, String content) implements FSNode {
   @Override
   public String getName() {
     return name;
   }
 
   @Override
-  public String getPath() {
-    String path = "";
-    Element current = this;
+  public Category getCategory() {
+    return Category.FILE;
+  }
 
-    while (current != null && current != root) {
-      path = "/" + current.getName() + path;
-      current = current.getParent();
+  @Override
+  public String getLocation() {
+    String parentLocation = parent.getLocation();
+    if ("/".equals(parentLocation)) {
+      return parentLocation + name;
+    } else {
+      return parentLocation + "/" + name;
     }
-
-    return root.getPath() + path;
   }
-
-  @Override
-  public boolean isDirectory() {
-    return false;
-  }
-
-  public Element getParent() {
-    return parent;
-  }
-
-  public Element getRoot() {
-    return root;
-  }
-
-  @Override
-  public boolean isLeaf() {
-    return true;
-  }
-
-  @Override
-  public List<Element> getChildren() {
-    return List.of();
-  }
-
 }

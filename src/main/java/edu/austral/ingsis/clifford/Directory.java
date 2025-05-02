@@ -1,20 +1,20 @@
 package edu.austral.ingsis.clifford;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
-public class Directory implements Element {
+public record Directory(String name, Directory parent, Map<String, FSNode> children)
+        implements FSNode {
 
-  private final String name;
-  private final Element parent;
-  private final Element root;
-  private final List<Element> children;
+  public Directory {
+    children = Collections.unmodifiableMap(new LinkedHashMap<>(children));
+  }
 
-  public Directory(String name, Element parent, List<Element> children, Element root) {
-    this.name = name;
-    this.parent = parent;
-    this.root = root;
-    this.children = Collections.unmodifiableList(children);
+  public Directory(String name, Directory parent) {
+    this(name, parent, new LinkedHashMap<>());
+  }
+
+  public Directory() {
+    this("/", null, new LinkedHashMap<>());
   }
 
   @Override
@@ -23,37 +23,38 @@ public class Directory implements Element {
   }
 
   @Override
-  public String getPath() {
-    String path = "";
-    Element current = this;
+  public Category getCategory() {
+    return Category.DIRECTORY;
+  }
 
-    while (current != null && current != root) {
-      path = "/" + current.getName() + path;
-      current = current.getParent();
+  @Override
+  public String getLocation() {
+    if (parent == null) {
+      return "/";
     }
-
-    return root.getPath() + path;
+    if (parent.parent == null) {
+      return "/" + name;
+    }
+    return parent.getLocation() + "/" + name;
   }
 
-  @Override
-  public boolean isDirectory() {
-    return true;
+  public FSNode findNode(String nodeName) {
+    return children.get(nodeName);
   }
 
-  public Element getParent() {
-    return parent;
+  public List<FSNode> listNodes() {
+    return new ArrayList<>(children.values());
   }
 
-  public Element getRoot() {
-    return root;
+  public Directory insertNode(FSNode FSNode) {
+    LinkedHashMap<String, FSNode> newChildren = new LinkedHashMap<>(children);
+    newChildren.put(FSNode.getName(), FSNode);
+    return new Directory(name, parent, newChildren);
   }
 
-  @Override
-  public boolean isLeaf() {
-    return children.isEmpty();
-  }
-
-  public List<Element> getChildren() {
-    return children;
+  public Directory deleteNode(String nodeName) {
+    LinkedHashMap<String, FSNode> newChildren = new LinkedHashMap<>(children);
+    newChildren.remove(nodeName);
+    return new Directory(name, parent, newChildren);
   }
 }

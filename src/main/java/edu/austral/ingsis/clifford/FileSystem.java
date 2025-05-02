@@ -1,37 +1,76 @@
 package edu.austral.ingsis.clifford;
 
-import java.util.List;
 
 public class FileSystem {
+  private final Directory rootDirectory;
+  private final Directory currentDirectory;
 
-  Element root;
-  CommandResult result;
-  Element currentDirectory;
+  public FileSystem() {
+    this.rootDirectory = new Directory();
+    this.currentDirectory = this.rootDirectory;
+  }
 
-  public FileSystem(Element root, Element currentDirectory, CommandResult result) {
-    this.root = root;
-    this.result = result;
+  private FileSystem(Directory rootDirectory, Directory currentDirectory) {
+    this.rootDirectory = rootDirectory;
     this.currentDirectory = currentDirectory;
   }
-    public FileSystem() {
-        this.root = new Directory("root", null, List.of(), null);
-    }
 
-
-  public FileSystem execute(String commandInput) {
-    Parser parser = new Parser();
-    Command command = parser.parse(commandInput);
-    return command.execute(commandInput, currentDirectory);
-  }
-
-  public Element getCurrentDirectory() {
+  public Directory getCurrentDirectory() {
     return currentDirectory;
   }
-  public Element getRoot() {
-    return root;
+
+  public FileSystem apply(CommandResult<Directory> result) {
+    if (result.newRoot() == null) {
+      Directory targetDir = result.currentPosition();
+
+      if (targetDir != rootDirectory && targetDir != currentDirectory) {
+        Directory resolvedDir = findDirectoryByPath(rootDirectory, targetDir.getLocation());
+        if (resolvedDir != null) {
+          return new FileSystem(rootDirectory, resolvedDir);
+        }
+      }
+
+      return new FileSystem(rootDirectory, targetDir);
+    }
+
+    return new FileSystem(result.newRoot(), result.currentPosition());
   }
 
-    public CommandResult getResult() {
-        return result;
+  private Directory findDirectoryByPath(Directory searchRoot, String path) {
+    if (path.equals("/")) {
+      return rootDirectory;
     }
+
+    if (!path.startsWith("/")) {
+      path = "/" + path;
+    }
+
+    String[] pathSegments = path.split("/");
+    Directory current = searchRoot;
+
+    for (int i = 1; i < pathSegments.length; i++) {
+      String segment = pathSegments[i];
+      if (segment.isEmpty()) continue;
+
+      FSNode FSNode = current.findNode(segment);
+      if (FSNode == null || FSNode.getCategory() != Category.DIRECTORY) {
+        return null;
+      }
+
+      current = (Directory) FSNode;
+    }
+
+    return current;
+  }
+
+  public static Directory rebuildBranch(Directory originalDirectory, Directory modifiedDirectory) {
+    if (originalDirectory.parent() == null) {
+      return modifiedDirectory;
+    }
+
+    Directory newParent = originalDirectory.parent().deleteNode(originalDirectory.getName());
+    newParent = newParent.insertNode(modifiedDirectory);
+
+    return rebuildBranch(originalDirectory.parent(), newParent);
+  }
 }
